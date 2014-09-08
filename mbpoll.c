@@ -37,10 +37,10 @@ int main(int argc, char **argv) {
   parse_args(&mbp, argc, argv);
 
   // print input variables
-	printf("IP Address: %s\n", mbp.ip_address);
-	printf("Port: %d\n", mbp.port);
-	printf("Starting Register: %d\n", mbp.starting_register);
-	printf("Number of Registers To Read: %d\n", mbp.num_registers);
+  printf("IP Address: %s\n", mbp.ip_address);
+  printf("Port: %d\n", mbp.port);
+  printf("Starting Register: %d\n", mbp.starting_register);
+  printf("Number of Registers To Read: %d\n", mbp.num_registers);
   printf("Registers: %u-%u\n\n", mbp.starting_register,
          mbp.starting_register + mbp.num_registers - 1);
 
@@ -48,8 +48,8 @@ int main(int argc, char **argv) {
   tab_reg = (uint16_t *) malloc(sizeof(uint16_t) * mbp.num_registers);
 
   // poll and check that we have results
-	if ((result = poll(&mbp, tab_reg)) < 1) {
-		fprintf(stderr, "Read 0 registers.\nError: %s\n",
+  if ((result = poll(&mbp, tab_reg)) < 1) {
+    fprintf(stderr, "Read 0 registers.\nError: %s\n",
             modbus_strerror(errno));
     free(tab_reg);
     exit(4);
@@ -61,7 +61,7 @@ int main(int argc, char **argv) {
   for(idx = 0; idx < result; idx++) {
     printf("%d: %d\n", mbp.starting_register + idx, tab_reg[idx]);
   }
-	
+
   // free allocated memory
   free(tab_reg);
 
@@ -122,7 +122,7 @@ void validate_params(struct modbus_params *mbp) {
   if (mbp->num_registers < 1 || mbp->num_registers > 125) {
     fprintf(stderr, "Invalid number of registers (max. 125).\n");
     exit(1);
-	}
+  }
 }
 
 // parses command line arguments
@@ -186,33 +186,31 @@ int parse_args(struct modbus_params *mbp, int argc, char **argv) {
 // do actual modbus polling
 int poll(struct modbus_params *mbp, uint16_t *tab_reg) {
   int mb_friendly_starting_reg = mbp->starting_register - 40001;
-	struct timeval response_timeout;
-	int result;
-	modbus_t *mb;
+  struct timeval response_timeout;
+  int result;
+  modbus_t *mb;
 
   // create tcp connection
   mb = modbus_new_tcp(mbp->ip_address, mbp->port);
-	if (modbus_connect(mb) == -1) {
-		fprintf(stderr, "Connection failed: %s\n", modbus_strerror(errno));
-		modbus_free(mb);
-		exit(3);
-	}
+  if (modbus_connect(mb) == -1) {
+    fprintf(stderr, "Connection failed: %s\n", modbus_strerror(errno));
+    modbus_free(mb);
+    exit(3);
+  }
 
-	// set a longer timeout -- the default was too short
-	response_timeout.tv_sec = mbp->response_timeout;
-	modbus_set_response_timeout(mb, &response_timeout);
+  // set a longer timeout -- the default was too short
+  response_timeout.tv_sec = mbp->response_timeout;
+  modbus_set_response_timeout(mb, &response_timeout);
 
   // read modbus registers on active tcp connection
-	// returns -1 for error, otherwise number of registers read
+  // returns -1 for error, otherwise number of registers read
   result = modbus_read_registers(mb, mb_friendly_starting_reg,
                                  mbp->num_registers, tab_reg);
 
-	// close and free mb connection
-	modbus_close(mb);
-	modbus_free(mb);
+  // close and free mb connection
+  modbus_close(mb);
+  modbus_free(mb);
 
   return result;
 }
-
-
 
