@@ -30,7 +30,7 @@ int poll(struct modbus_params *mbp, uint16_t *tab_reg);
 int main(int argc, char **argv) {
   // variable declaration;
   struct modbus_params mbp;
-  uint16_t *tab_reg;//[99];
+  uint16_t *tab_reg;
   int result, idx;
 
   // parse the command line arguments
