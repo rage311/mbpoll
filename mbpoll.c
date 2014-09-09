@@ -1,4 +1,3 @@
-#include <modbus/modbus.h>
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -6,6 +5,8 @@
 #include <unistd.h>
 #include <string.h>
 #include <arpa/inet.h>
+
+#include <modbus/modbus.h>
 
 
 extern const char *__progname;
