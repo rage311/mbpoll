@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
   // free allocated memory
   free(tab_reg);
 
-	return 0;
+  return 0;
 }
 
 // print usage
