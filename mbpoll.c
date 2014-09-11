@@ -8,7 +8,6 @@
 
 #include <modbus/modbus.h>
 
-
 extern const char *__progname;
 
 struct modbus_params {
@@ -26,6 +25,7 @@ int is_valid_ip(char *ip_addr);
 void validate_params(struct modbus_params *mbp);
 int parse_args(struct modbus_params *mbp, int argc, char **argv);
 int poll(struct modbus_params *mbp, uint16_t *tab_reg);
+void int_to_bool_string(uint16_t value);
 
 
 int main(int argc, char **argv) {
@@ -50,8 +50,7 @@ int main(int argc, char **argv) {
 
   // poll and check that we have results
   if ((result = poll(&mbp, tab_reg)) < 1) {
-    fprintf(stderr, "Read 0 registers.\nError: %s\n",
-            modbus_strerror(errno));
+    fprintf(stderr, "Read 0 registers.\nError: %s\n", modbus_strerror(errno));
     free(tab_reg);
     exit(4);
   }
@@ -71,8 +70,7 @@ int main(int argc, char **argv) {
 
 // print usage
 void usage() {
-  printf("Usage: %s [OPTION]... IP_ADDRESS STARTING_REGISTER\n",
-         __progname);
+  printf("Usage: %s [OPTION]... IP_ADDRESS STARTING_REGISTER\n", __progname);
   puts("Poll the specified register(s) via MODBUS/TCP.");
   puts("  -h    show this usage");
   puts("  -n    number of registers to poll (default 1)");
@@ -115,8 +113,7 @@ void validate_params(struct modbus_params *mbp) {
   }
 
   if (mbp->starting_register + mbp->num_registers - 1 > 49999) {
-    fprintf(stderr, "Register high limit exceeded."
-                    " Try fewer registers.\n");
+    fprintf(stderr, "Register high limit exceeded. Try fewer registers.\n");
     exit(1);
   }
   
@@ -199,7 +196,7 @@ int poll(struct modbus_params *mbp, uint16_t *tab_reg) {
     exit(3);
   }
 
-  // set a longer timeout -- the default was too short
+  // set specified timeout
   response_timeout.tv_sec = mbp->response_timeout;
   modbus_set_response_timeout(mb, &response_timeout);
 
@@ -213,5 +210,19 @@ int poll(struct modbus_params *mbp, uint16_t *tab_reg) {
   modbus_free(mb);
 
   return result;
+}
+
+void int_to_bool_string(uint16_t value) {
+  int i;
+  char bool_string[17];
+  char *ptr = bool_string;
+
+  bool_string[16] = '\0';
+
+  for (i = 32768; i > 0; i >>= 1) {
+    *ptr++ = (value & i) ? '1' : '0';
+  }
+
+  printf("%s\n", bool_string);
 }
 
