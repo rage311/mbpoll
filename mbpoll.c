@@ -139,7 +139,7 @@ int parse_args(struct modbus_params *mbp, int argc, char **argv) {
   while ((current_arg = getopt(argc, argv, "hn:p:t:")) != -1) {
     switch (current_arg) {
       case 'h':
-        usage(argv[0]);
+        usage();
         exit(0);
       case 'n':
         mbp->num_registers = atoi(optarg);
@@ -167,7 +167,7 @@ int parse_args(struct modbus_params *mbp, int argc, char **argv) {
   // need 2 args left over after parsed flags (IP and starting register)
   if (argc - optind != 2) {
     fprintf(stderr, "Wrong number of arguments.\n");
-    usage(argv[0]);
+    usage();
     exit(1);
   }
 
