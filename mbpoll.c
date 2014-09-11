@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
   // free allocated memory
   free(tab_reg);
 
-	return 0;
+  return 0;
 }
 
 // print usage
@@ -103,7 +103,7 @@ void validate_params(struct modbus_params *mbp) {
     exit(1);
   }
 
-	if (mbp->port < 1 || mbp->port > 65535) {
+  if (mbp->port < 1 || mbp->port > 65535) {
     fprintf(stderr, "Invalid port.\n");
     exit(1);
   }
