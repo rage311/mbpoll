@@ -8,48 +8,68 @@
 
 #include <modbus/modbus.h>
 
+
+
 extern const char *__progname;
 
-struct modbus_params {
-  char *ip_address;
-  int port;
+typedef enum {
+  INTEGER,
+  LONG,
+  BINARY,
+  FLOAT,
+  ASCII
+} format_type;
+
+struct modbus_db_params {
   int starting_register;
   int num_registers;
+  format_type format;
+};
+
+struct modbus_comm_params {
+  char *ip_address;
+  int port;
   int response_timeout;
+  int rtu_address;
 };
 
 
 // declarations
 void usage();
 int is_valid_ip(char *ip_addr);
-void validate_params(struct modbus_params *mbp);
-int parse_args(struct modbus_params *mbp, int argc, char **argv);
-int poll(struct modbus_params *mbp, uint16_t *tab_reg);
-void int_to_bool_string(uint16_t value);
+void validate_params(struct modbus_comm_params *mbcp,
+                     struct modbus_db_params *mbdp);
+int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
+               int argc, char **argv);
+int poll(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
+         uint16_t *tab_reg);
+void int_to_binary_string(uint16_t value);
 
 
-int main(int argc, char **argv) {
-  // variable declaration;
-  struct modbus_params mbp;
+int main(int argc, char **argv)
+{
+  // variable declaration
+  struct modbus_comm_params mbcp;
+  struct modbus_db_params mbdp;
   uint16_t *tab_reg;
   int result, idx;
 
   // parse the command line arguments
-  parse_args(&mbp, argc, argv);
+  parse_args(&mbcp, &mbdp, argc, argv);
 
   // print input variables
-  printf("IP Address: %s\n", mbp.ip_address);
-  printf("Port: %d\n", mbp.port);
-  printf("Starting Register: %d\n", mbp.starting_register);
-  printf("Number of Registers To Read: %d\n", mbp.num_registers);
-  printf("Registers: %u-%u\n\n", mbp.starting_register,
-         mbp.starting_register + mbp.num_registers - 1);
+  printf("IP Address: %s\n", mbcp.ip_address);
+  printf("Port: %d\n", mbcp.port);
+  printf("Starting Register: %d\n", mbdp.starting_register);
+  printf("Number of Registers To Read: %d\n", mbdp.num_registers);
+  printf("Registers: %u-%u\n\n", mbdp.starting_register,
+         mbdp.starting_register + mbdp.num_registers - 1);
 
   // allocate memory based on number of registers to be polled
-  tab_reg = (uint16_t *) malloc(sizeof(uint16_t) * mbp.num_registers);
+  tab_reg = (uint16_t *) malloc(sizeof(uint16_t) * mbdp.num_registers);
 
   // poll and check that we have results
-  if ((result = poll(&mbp, tab_reg)) < 1) {
+  if ((result = poll(&mbcp, &mbdp, tab_reg)) < 1) {
     fprintf(stderr, "Read 0 registers.\nError: %s\n", modbus_strerror(errno));
     free(tab_reg);
     exit(4);
@@ -59,7 +79,9 @@ int main(int argc, char **argv) {
 
   // loop through results and print
   for(idx = 0; idx < result; idx++) {
-    printf("%d: %d\n", mbp.starting_register + idx, tab_reg[idx]);
+    printf("%d: %d\n", mbdp.starting_register + idx, tab_reg[idx]);
+
+    if (mbdp.format == BINARY) int_to_binary_string(tab_reg[idx]);
   }
 
   // free allocated memory
@@ -69,7 +91,8 @@ int main(int argc, char **argv) {
 }
 
 // print usage
-void usage() {
+void usage()
+{
   printf("Usage: %s [OPTION]... IP_ADDRESS STARTING_REGISTER\n", __progname);
   puts("Poll the specified register(s) via MODBUS/TCP.");
   puts("  -h    show this usage");
@@ -87,50 +110,54 @@ void usage() {
 
 // checks to see if a char* IP address can be parsed as
 // a proper IP address
-int is_valid_ip(char *ip_addr) {
+int is_valid_ip(char *ip_addr)
+{
   struct sockaddr_in sa;
   int result = inet_pton(AF_INET, ip_addr, &(sa.sin_addr));
   return result != 0;
 }
 
 // validates input parameters
-void validate_params(struct modbus_params *mbp) {
+void validate_params(struct modbus_comm_params *mbcp,
+                     struct modbus_db_params *mbdp)
+{
   // check for a valid IP argument
-  if (!is_valid_ip(mbp->ip_address)) {
+  if (!is_valid_ip(mbcp->ip_address)) {
     fprintf(stderr, "Invalid IP.\n");
     exit(1);
   }
 
-  if (mbp->port < 1 || mbp->port > 65535) {
+  if (mbcp->port < 1 || mbcp->port > 65535) {
     fprintf(stderr, "Invalid port.\n");
     exit(1);
   }
 
-  if (mbp->starting_register < 40000 ||
-      mbp->starting_register > 49999) {
+  if (mbdp->starting_register < 40000 || mbdp->starting_register > 49999) {
     fprintf(stderr, "Invalid starting register.\n");
     exit(1);
   }
 
-  if (mbp->starting_register + mbp->num_registers - 1 > 49999) {
+  if (mbdp->starting_register + mbdp->num_registers - 1 > 49999) {
     fprintf(stderr, "Register high limit exceeded. Try fewer registers.\n");
     exit(1);
   }
   
-  if (mbp->num_registers < 1 || mbp->num_registers > 125) {
+  if (mbdp->num_registers < 1 || mbdp->num_registers > 125) {
     fprintf(stderr, "Invalid number of registers (max. 125).\n");
     exit(1);
   }
 }
 
 // parses command line arguments
-int parse_args(struct modbus_params *mbp, int argc, char **argv) {
+int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
+               int argc, char **argv)
+{
   int current_arg;
 
   //defaults
-  mbp->port = 502;
-  mbp->num_registers = 1;
-  mbp->response_timeout = 3;
+  mbcp->port = 502;
+  mbcp->response_timeout = 3;
+  mbdp->num_registers = 1;
 
   // parse flags
   while ((current_arg = getopt(argc, argv, "hn:p:t:")) != -1) {
@@ -138,14 +165,14 @@ int parse_args(struct modbus_params *mbp, int argc, char **argv) {
       case 'h':
         usage();
         exit(0);
-      case 'n':
-        mbp->num_registers = atoi(optarg);
-        break;
+   /* case 'n':
+        mbdp->num_registers = atoi(optarg);
+        break; */
       case 'p':
-        mbp->port = atoi(optarg);
+        mbcp->port = atoi(optarg);
         break;
       case 't':
-        mbp->response_timeout = atoi(optarg);
+        mbcp->response_timeout = atoi(optarg);
         break;
       case '?':
         if (optopt == 'n' || optopt == 'p' || optopt == 't') {
@@ -169,27 +196,63 @@ int parse_args(struct modbus_params *mbp, int argc, char **argv) {
   }
 
   // set IP address
-  mbp->ip_address = argv[optind];
+  mbcp->ip_address = argv[optind];
   optind++;
 
-  // set starting register
-  mbp->starting_register = atoi(argv[optind]);
+  char *db_param_string;
+  db_param_string = strtok(argv[optind], ",");
+  if (db_param_string == NULL) {
+    fprintf(stderr, "Invalid CSV string for registers.\n");
+    exit(1);
+  }
+  mbdp->starting_register = atoi(db_param_string);
+
+  db_param_string = strtok(NULL, ",");
+  if (db_param_string == NULL) {
+    fprintf(stderr, "Invalid CSV string for registers.\n");
+    exit(1);
+  }
+  if (atoi(db_param_string) < mbdp->starting_register)
+    mbdp->num_registers = atoi(db_param_string);
+  else
+    mbdp->num_registers = atoi(db_param_string) - mbdp->starting_register + 1;
+
+  db_param_string = strtok(NULL, ",");
+  if (db_param_string == NULL) {
+    fprintf(stderr, "Invalid CSV string for registers.\n");
+    exit(1);
+  }
+
+  char format_char = db_param_string[0];
+  if      (format_char == 'i') mbdp->format = INTEGER;
+  else if (format_char == 'l') mbdp->format = LONG;
+  else if (format_char == 'f') mbdp->format = FLOAT;
+  else if (format_char == 'b') mbdp->format = BINARY;
+  else if (format_char == 'a') mbdp->format = ASCII;
+  else {
+      fprintf(stderr, "Invalid format type.\n");
+      exit(1);
+  }
 
   // validate set parameters
-  validate_params(mbp);
+  validate_params(mbcp, mbdp);
 
   return 0;
 }
 
 // do actual modbus polling
-int poll(struct modbus_params *mbp, uint16_t *tab_reg) {
-  int mb_friendly_starting_reg = mbp->starting_register - 40001;
+int poll(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
+         uint16_t *tab_reg)
+{
+  int mb_friendly_starting_reg = mbdp->starting_register - 40001;
   struct timeval response_timeout;
   int result;
   modbus_t *mb;
 
   // create tcp connection
-  mb = modbus_new_tcp(mbp->ip_address, mbp->port);
+  mb = modbus_new_tcp(mbcp->ip_address, mbcp->port);
+  // set slave address to 1 -- usually not needed for Modbus/TCP
+  modbus_set_slave(mb, 1);
   if (modbus_connect(mb) == -1) {
     fprintf(stderr, "Connection failed: %s\n", modbus_strerror(errno));
     modbus_free(mb);
@@ -197,13 +260,13 @@ int poll(struct modbus_params *mbp, uint16_t *tab_reg) {
   }
 
   // set specified timeout
-  response_timeout.tv_sec = mbp->response_timeout;
+  response_timeout.tv_sec = mbcp->response_timeout;
   modbus_set_response_timeout(mb, &response_timeout);
 
   // read modbus registers on active tcp connection
   // returns -1 for error, otherwise number of registers read
   result = modbus_read_registers(mb, mb_friendly_starting_reg,
-                                 mbp->num_registers, tab_reg);
+                                 mbdp->num_registers, tab_reg);
 
   // close and free mb connection
   modbus_close(mb);
@@ -212,7 +275,8 @@ int poll(struct modbus_params *mbp, uint16_t *tab_reg) {
   return result;
 }
 
-void int_to_bool_string(uint16_t value) {
+void int_to_binary_string(uint16_t value)
+{
   int i;
   char bool_string[17];
   char *ptr = bool_string;
