@@ -8,7 +8,7 @@
 
 #include <modbus/modbus.h>
 
-
+uint16_t
 
 extern const char *__progname;
 
@@ -240,6 +240,23 @@ int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
   return 0;
 }
 
+void make_float(uint16_t *reg_values)
+{
+  if (reg_values == NULL) {
+    fprintf(stderr, "Null pointer in make_float()\n");
+    exit(EXIT_FAILURE);
+  }
+
+  uint16_t *int_ptr = reg_values[0];
+  float result = 0.0f;
+  char *char_ptr;
+  char_ptr = &reg_values[0]; 
+
+  printf("char_ptr[0]: %d\n", *char_ptr);
+
+  result = (reg_values[0] << 16 & reg_values[1]);  
+}
+
 // do actual modbus polling
 int poll(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
          uint16_t *tab_reg)
@@ -289,4 +306,5 @@ void int_to_binary_string(uint16_t value)
 
   printf("%s\n", bool_string);
 }
+
 
