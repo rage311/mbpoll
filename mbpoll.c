@@ -82,7 +82,7 @@ int main(int argc, char **argv)
     exit(4);
   }
 
-  printf("%d results:\n", result);
+  //printf("%d results:\n", result);
 
   // loop through results and print
   for(idx = 0; idx < result; idx++) {
@@ -113,12 +113,6 @@ int main(int argc, char **argv)
       default:
         break;
     }
-
-
-    //if (mbdp.format == BINARY) int_to_binary_string(tab_reg[idx]);
-    //else if (mbdp.format == FLOAT) make_float(tab_reg[idx], tab_reg[++idx]);
-    //else if (mbdp.format == U_SHORT) make_float(tab_reg[idx], tab_reg[++idx]);
-
   }
 
   // free allocated memory
@@ -128,21 +122,21 @@ int main(int argc, char **argv)
 }
 
 // print usage
-// TODO: add csv format for registers
 void usage()
 {
-  printf("Usage: %s [OPTION]... IP_ADDRESS STARTING_REGISTER\n", __progname);
+  printf("Usage: %s [OPTION]... IP_ADDRESS STARTING_REGISTER,\n"
+         "NUMBER_OF_REGISTERS(or end register),FORMAT\n", __progname);
   puts("Poll the specified register(s) via MODBUS/TCP.");
   puts("  -h    show this usage");
-  puts("  -n    number of registers to poll (default 1)");
+  //puts("  -n    number of registers to poll (default 1)");
   puts("  -p    destination port number (default 502)"); 
   puts("  -t    response timeout in seconds (default 3)\n"); 
 
   puts("Examples:");
-  printf("  %s -n 10 -p 502 -t 5 192.168.1.5 40001\n"
+  printf("  %s -p 502 -t 5 192.168.1.5 40001,10,u\n"
          "    Poll 10 registers from 192.168.1.5 on port 502"
          " with a 5 second timeout\n"
-         "    starting at register 40001.\n",
+         "    starting at register 40001. Print values as unsigned shorts.\n",
          __progname);
 }
 
@@ -203,9 +197,6 @@ int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
       case 'h':
         usage();
         exit(0);
-   /* case 'n':
-        mbdp->num_registers = atoi(optarg);
-        break; */
       case 'p':
         mbcp->port = atoi(optarg);
         break;
@@ -266,23 +257,37 @@ int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
   }
 
   // need to change to accommodate unsigned short/unsigned long separately
-  char format_char = db_param_string[0];
-  if      (format_char == 's') mbdp->format = S_SHORT;
-  else if (format_char == 'S') mbdp->format = S_LONG;
-  else if (format_char == 'u') mbdp->format = U_SHORT;
-  else if (format_char == 'U') mbdp->format = U_LONG;
-  else if (format_char == 'f') mbdp->format = FLOAT;
-  else if (format_char == 'b') mbdp->format = BINARY;
-  else if (format_char == 'a') mbdp->format = ASCII;
-  else {
+  switch (db_param_string[0]) {
+    case 's':
+      mbdp->format = S_SHORT;
+      break;
+    case 'S':
+      mbdp->format = S_LONG;
+      break;
+    case 'u':
+      mbdp->format = U_SHORT;
+      break;
+    case 'U':
+      mbdp->format = U_LONG;
+      break;
+    case 'f':
+      mbdp->format = FLOAT;
+      break;
+    case 'b':
+      mbdp->format = BINARY;
+      break;
+    case 'a':
+      mbdp->format = ASCII;
+      break;
+    default:
       fprintf(stderr, "Invalid format type.\n");
       exit(1);
   }
 
   // any 32-bit formats need 2 regs per value
-  if (mbdp->num_registers % 2 == 1 && (mbdp->format == FLOAT ||
-                                       mbdp->format == S_LONG ||
-                                       mbdp->format == U_LONG)) {
+  if (mbdp->num_registers % 2 && (mbdp->format == FLOAT ||
+                                  mbdp->format == S_LONG ||
+                                  mbdp->format == U_LONG)) {
       mbdp->num_registers++;
   }
 
@@ -294,18 +299,9 @@ int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
 
 void print_float(uint16_t value1, uint16_t value2)
 {
-  //if (reg_values == NULL) {
-  //  fprintf(stderr, "Null pointer in make_float()\n");
-  //  exit(EXIT_FAILURE);
-  //}
-
   float *result;
   int int32 = (value1 << 16) | value2;
   result = (float *)&int32;
-  //char *char_ptr;
-  //char_ptr = &reg_values[0]; 
-
-  //printf("char_ptr[0]: %d\n", *char_ptr);
 
   printf("%.2f\n", *result);
 }
@@ -345,15 +341,17 @@ int poll(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
   return result;
 }
 
+// print register as a binary string
 void print_binary(uint16_t value)
 {
   int i;
-  char bool_string[17];
+  char bool_string[18];
   char *ptr = bool_string;
 
-  bool_string[16] = '\0';
+  bool_string[17] = '\0';
 
   for (i = 32768; i > 0; i >>= 1) {
+    if (i == 128) *ptr++ = ' ';
     *ptr++ = (value & i) ? '1' : '0';
   }
 
@@ -386,6 +384,6 @@ void print_ascii(uint16_t value)
 {
   char value_char = (char)value;
   if (isprint(value_char)) printf("%c\n", value_char);
-  else puts("N/A\n"); 
+  else puts("N/A"); 
 }
 
