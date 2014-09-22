@@ -8,13 +8,13 @@
 
 #include <modbus/modbus.h>
 
-uint16_t
-
 extern const char *__progname;
 
 typedef enum {
-  INTEGER,
-  LONG,
+  S_SHORT,
+  S_LONG,
+  U_SHORT,
+  U_LONG,
   BINARY,
   FLOAT,
   ASCII
@@ -43,7 +43,14 @@ int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
                int argc, char **argv);
 int poll(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
          uint16_t *tab_reg);
-void int_to_binary_string(uint16_t value);
+
+void print_s_short(uint16_t value);
+void print_s_long(uint16_t value1, uint16_t value2);
+void print_u_short(uint16_t value);
+void print_u_long(uint16_t value1, uint16_t value2);
+void print_binary(uint16_t value);
+void print_float(uint16_t value1, uint16_t value2);
+void print_ascii(uint16_t value);
 
 
 int main(int argc, char **argv)
@@ -79,9 +86,39 @@ int main(int argc, char **argv)
 
   // loop through results and print
   for(idx = 0; idx < result; idx++) {
-    printf("%d: %d\n", mbdp.starting_register + idx, tab_reg[idx]);
+    printf("%u:\t", mbdp.starting_register + idx);
 
-    if (mbdp.format == BINARY) int_to_binary_string(tab_reg[idx]);
+    switch (mbdp.format) {
+      case S_SHORT:
+        print_s_short(tab_reg[idx]); 
+        break;
+      case S_LONG:
+        print_s_long(tab_reg[idx], tab_reg[++idx]); 
+        break;
+      case U_SHORT:
+        print_u_short(tab_reg[idx]);
+        break;
+      case U_LONG:
+        print_u_long(tab_reg[idx], tab_reg[++idx]);
+        break;
+      case BINARY:
+        print_binary(tab_reg[idx]);
+        break;
+      case FLOAT:
+        print_float(tab_reg[idx], tab_reg[++idx]);
+        break;
+      case ASCII:
+        print_ascii(tab_reg[idx]);
+        break;
+      default:
+        break;
+    }
+
+
+    //if (mbdp.format == BINARY) int_to_binary_string(tab_reg[idx]);
+    //else if (mbdp.format == FLOAT) make_float(tab_reg[idx], tab_reg[++idx]);
+    //else if (mbdp.format == U_SHORT) make_float(tab_reg[idx], tab_reg[++idx]);
+
   }
 
   // free allocated memory
@@ -91,6 +128,7 @@ int main(int argc, char **argv)
 }
 
 // print usage
+// TODO: add csv format for registers
 void usage()
 {
   printf("Usage: %s [OPTION]... IP_ADDRESS STARTING_REGISTER\n", __progname);
@@ -199,12 +237,15 @@ int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
   mbcp->ip_address = argv[optind];
   optind++;
 
+  // register parameter csv string should look like: 40001,40002,f
+  // or 40001,10,i
   char *db_param_string;
   db_param_string = strtok(argv[optind], ",");
   if (db_param_string == NULL) {
     fprintf(stderr, "Invalid CSV string for registers.\n");
     exit(1);
   }
+  // first csv parameter is starting register
   mbdp->starting_register = atoi(db_param_string);
 
   db_param_string = strtok(NULL, ",");
@@ -212,6 +253,7 @@ int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
     fprintf(stderr, "Invalid CSV string for registers.\n");
     exit(1);
   }
+  // if 2nd param is less than start reg, then it's a quantity, not a reg
   if (atoi(db_param_string) < mbdp->starting_register)
     mbdp->num_registers = atoi(db_param_string);
   else
@@ -223,9 +265,12 @@ int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
     exit(1);
   }
 
+  // need to change to accommodate unsigned short/unsigned long separately
   char format_char = db_param_string[0];
-  if      (format_char == 'i') mbdp->format = INTEGER;
-  else if (format_char == 'l') mbdp->format = LONG;
+  if      (format_char == 's') mbdp->format = S_SHORT;
+  else if (format_char == 'S') mbdp->format = S_LONG;
+  else if (format_char == 'u') mbdp->format = U_SHORT;
+  else if (format_char == 'U') mbdp->format = U_LONG;
   else if (format_char == 'f') mbdp->format = FLOAT;
   else if (format_char == 'b') mbdp->format = BINARY;
   else if (format_char == 'a') mbdp->format = ASCII;
@@ -234,27 +279,35 @@ int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
       exit(1);
   }
 
+  // any 32-bit formats need 2 regs per value
+  if (mbdp->num_registers % 2 == 1 && (mbdp->format == FLOAT ||
+                                       mbdp->format == S_LONG ||
+                                       mbdp->format == U_LONG)) {
+      mbdp->num_registers++;
+  }
+
   // validate set parameters
   validate_params(mbcp, mbdp);
 
   return 0;
 }
 
-void make_float(uint16_t *reg_values)
+void print_float(uint16_t value1, uint16_t value2)
 {
-  if (reg_values == NULL) {
-    fprintf(stderr, "Null pointer in make_float()\n");
-    exit(EXIT_FAILURE);
-  }
+  //if (reg_values == NULL) {
+  //  fprintf(stderr, "Null pointer in make_float()\n");
+  //  exit(EXIT_FAILURE);
+  //}
 
-  uint16_t *int_ptr = reg_values[0];
-  float result = 0.0f;
-  char *char_ptr;
-  char_ptr = &reg_values[0]; 
+  float *result;
+  int int32 = (value1 << 16) | value2;
+  result = (float *)&int32;
+  //char *char_ptr;
+  //char_ptr = &reg_values[0]; 
 
-  printf("char_ptr[0]: %d\n", *char_ptr);
+  //printf("char_ptr[0]: %d\n", *char_ptr);
 
-  result = (reg_values[0] << 16 & reg_values[1]);  
+  printf("%.2f\n", *result);
 }
 
 // do actual modbus polling
@@ -292,7 +345,7 @@ int poll(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
   return result;
 }
 
-void int_to_binary_string(uint16_t value)
+void print_binary(uint16_t value)
 {
   int i;
   char bool_string[17];
@@ -307,4 +360,32 @@ void int_to_binary_string(uint16_t value)
   printf("%s\n", bool_string);
 }
 
+void print_s_short(uint16_t value)
+{
+  printf("%d\n", value);
+}
+
+void print_s_long(uint16_t value1, uint16_t value2)
+{
+  int int32 = (value1 << 16) | value2;
+  printf("%d\n", int32);
+}
+
+void print_u_short(uint16_t value)
+{
+  printf("%u\n", value);
+}
+
+void print_u_long(uint16_t value1, uint16_t value2)
+{
+  int int32 = (value1 << 16) | value2;
+  printf("%u\n", int32);
+}
+
+void print_ascii(uint16_t value)
+{
+  char value_char = (char)value;
+  if (isprint(value_char)) printf("%c\n", value_char);
+  else puts("N/A\n"); 
+}
 
