@@ -79,7 +79,7 @@ int main(int argc, char **argv)
   if ((result = poll(&mbcp, &mbdp, tab_reg)) < 1) {
     fprintf(stderr, "Read 0 registers.\nError: %s\n", modbus_strerror(errno));
     free(tab_reg);
-    exit(4);
+    exit(EXIT_FAILURE);
   }
 
   //printf("%d results:\n", result);
@@ -93,19 +93,22 @@ int main(int argc, char **argv)
         print_s_short(tab_reg[idx]); 
         break;
       case S_LONG:
-        print_s_long(tab_reg[idx], tab_reg[++idx]); 
+        print_s_long(tab_reg[idx], tab_reg[idx + 1]); 
+        idx++;
         break;
       case U_SHORT:
         print_u_short(tab_reg[idx]);
         break;
       case U_LONG:
-        print_u_long(tab_reg[idx], tab_reg[++idx]);
+        print_u_long(tab_reg[idx], tab_reg[idx + 1]);
+        idx++;
         break;
       case BINARY:
         print_binary(tab_reg[idx]);
         break;
       case FLOAT:
-        print_float(tab_reg[idx], tab_reg[++idx]);
+        print_float(tab_reg[idx], tab_reg[idx + 1]);
+        idx++;
         break;
       case ASCII:
         print_ascii(tab_reg[idx]);
@@ -128,7 +131,6 @@ void usage()
          "NUMBER_OF_REGISTERS(or end register),FORMAT\n", __progname);
   puts("Poll the specified register(s) via MODBUS/TCP.");
   puts("  -h    show this usage");
-  //puts("  -n    number of registers to poll (default 1)");
   puts("  -p    destination port number (default 502)"); 
   puts("  -t    response timeout in seconds (default 3)\n"); 
 
@@ -145,8 +147,7 @@ void usage()
 int is_valid_ip(char *ip_addr)
 {
   struct sockaddr_in sa;
-  int result = inet_pton(AF_INET, ip_addr, &(sa.sin_addr));
-  return result != 0;
+  return inet_pton(AF_INET, ip_addr, &(sa.sin_addr));
 }
 
 // validates input parameters
@@ -156,27 +157,27 @@ void validate_params(struct modbus_comm_params *mbcp,
   // check for a valid IP argument
   if (!is_valid_ip(mbcp->ip_address)) {
     fprintf(stderr, "Invalid IP.\n");
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 
   if (mbcp->port < 1 || mbcp->port > 65535) {
     fprintf(stderr, "Invalid port.\n");
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 
   if (mbdp->starting_register < 40000 || mbdp->starting_register > 49999) {
     fprintf(stderr, "Invalid starting register.\n");
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 
   if (mbdp->starting_register + mbdp->num_registers - 1 > 49999) {
     fprintf(stderr, "Register high limit exceeded. Try fewer registers.\n");
-    exit(1);
+    exit(EXIT_FAILURE);
   }
   
   if (mbdp->num_registers < 1 || mbdp->num_registers > 125) {
     fprintf(stderr, "Invalid number of registers (max. 125).\n");
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 }
 
@@ -196,7 +197,7 @@ int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
     switch (current_arg) {
       case 'h':
         usage();
-        exit(0);
+        exit(EXIT_SUCCESS);
       case 'p':
         mbcp->port = atoi(optarg);
         break;
@@ -210,10 +211,9 @@ int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
         else {
           fprintf (stderr, "Unknown option `-%c'.\n", optopt);
         }
-        
-        exit(1);
+        exit(EXIT_FAILURE);
       default:
-        exit(1);
+        exit(EXIT_FAILURE);
     }
   }
 
@@ -221,7 +221,7 @@ int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
   if (argc - optind != 2) {
     fprintf(stderr, "Wrong number of arguments.\n");
     usage();
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 
   // set IP address
@@ -234,7 +234,7 @@ int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
   db_param_string = strtok(argv[optind], ",");
   if (db_param_string == NULL) {
     fprintf(stderr, "Invalid CSV string for registers.\n");
-    exit(1);
+    exit(EXIT_FAILURE);
   }
   // first csv parameter is starting register
   mbdp->starting_register = atoi(db_param_string);
@@ -242,7 +242,7 @@ int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
   db_param_string = strtok(NULL, ",");
   if (db_param_string == NULL) {
     fprintf(stderr, "Invalid CSV string for registers.\n");
-    exit(1);
+    exit(EXIT_FAILURE);
   }
   // if 2nd param is less than start reg, then it's a quantity, not a reg
   if (atoi(db_param_string) < mbdp->starting_register)
@@ -253,7 +253,7 @@ int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
   db_param_string = strtok(NULL, ",");
   if (db_param_string == NULL) {
     fprintf(stderr, "Invalid CSV string for registers.\n");
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 
   // need to change to accommodate unsigned short/unsigned long separately
@@ -281,7 +281,7 @@ int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
       break;
     default:
       fprintf(stderr, "Invalid format type.\n");
-      exit(1);
+      exit(EXIT_FAILURE);
   }
 
   // any 32-bit formats need 2 regs per value
@@ -297,15 +297,6 @@ int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
   return 0;
 }
 
-void print_float(uint16_t value1, uint16_t value2)
-{
-  float *result;
-  int int32 = (value1 << 16) | value2;
-  result = (float *)&int32;
-
-  printf("%.2f\n", *result);
-}
-
 // do actual modbus polling
 int poll(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
          uint16_t *tab_reg)
@@ -315,6 +306,9 @@ int poll(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
   int result;
   modbus_t *mb;
 
+  // zero response_timeout struct
+  memset(&response_timeout, 0, sizeof(response_timeout));
+
   // create tcp connection
   mb = modbus_new_tcp(mbcp->ip_address, mbcp->port);
   // set slave address to 1 -- usually not needed for Modbus/TCP
@@ -322,7 +316,7 @@ int poll(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
   if (modbus_connect(mb) == -1) {
     fprintf(stderr, "Connection failed: %s\n", modbus_strerror(errno));
     modbus_free(mb);
-    exit(3);
+    exit(EXIT_FAILURE);
   }
 
   // set specified timeout
@@ -341,21 +335,31 @@ int poll(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
   return result;
 }
 
+void print_float(uint16_t value1, uint16_t value2)
+{
+  float *result;
+  int int32 = (value1 << 16) | value2;
+  result = (float *)&int32;
+
+  printf("%.2f\n", *result);
+}
+
 // print register as a binary string
 void print_binary(uint16_t value)
 {
   int i;
-  char bool_string[18];
-  char *ptr = bool_string;
+  char binary_string[18];
+  char *ptr = binary_string;
 
-  bool_string[17] = '\0';
+  binary_string[17] = '\0';
 
   for (i = 32768; i > 0; i >>= 1) {
-    if (i == 128) *ptr++ = ' ';
+    if (i == 128)
+      *ptr++ = ' ';
     *ptr++ = (value & i) ? '1' : '0';
   }
 
-  printf("%s\n", bool_string);
+  printf("%s\n", binary_string);
 }
 
 void print_s_short(uint16_t value)
@@ -365,8 +369,7 @@ void print_s_short(uint16_t value)
 
 void print_s_long(uint16_t value1, uint16_t value2)
 {
-  int int32 = (value1 << 16) | value2;
-  printf("%d\n", int32);
+  printf("%d\n", (value1 << 16) | value2);
 }
 
 void print_u_short(uint16_t value)
@@ -376,14 +379,15 @@ void print_u_short(uint16_t value)
 
 void print_u_long(uint16_t value1, uint16_t value2)
 {
-  int int32 = (value1 << 16) | value2;
-  printf("%u\n", int32);
+  printf("%u\n", (value1 << 16) | value2);
 }
 
 void print_ascii(uint16_t value)
 {
   char value_char = (char)value;
-  if (isprint(value_char)) printf("%c\n", value_char);
-  else puts("N/A"); 
+  if (isprint(value_char))
+    printf("%c\n", value_char);
+  else
+    puts("N/A"); 
 }
 
