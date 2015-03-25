@@ -384,10 +384,11 @@ void print_u_long(uint16_t value1, uint16_t value2)
 
 void print_ascii(uint16_t value)
 {
-  char value_char = (char)value;
-  if (isprint(value_char))
-    printf("%c\n", value_char);
-  else
-    puts("N/A"); 
+  char *char_ptr = (char *) &value;
+
+  printf("%c%c\n", isprint(char_ptr[0]) ? char_ptr[0] : '?',
+                   isprint(char_ptr[1]) ? char_ptr[1] : '?');
+
+  char_ptr = NULL;
 }
 
