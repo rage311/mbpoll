@@ -4,11 +4,21 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <string.h>
-#include <arpa/inet.h>
+
+#ifndef _WIN32
+  #include <arpa/inet.h>
+#else
+  #include <Ws2tcpip.h>
+  //#include <winsock2.h>
+#endif
 
 #include <modbus/modbus.h>
 
-extern const char *__progname;
+#ifndef _WIN32
+  extern const char *__progname;
+#else
+  const char *__progname;
+#endif
 
 typedef enum {
   S_SHORT,
@@ -16,7 +26,7 @@ typedef enum {
   U_SHORT,
   U_LONG,
   BINARY,
-  FLOAT,
+  FLOAT_T,
   ASCII
 } format_type;
 
@@ -55,6 +65,10 @@ void print_ascii(uint16_t value);
 
 int main(int argc, char **argv)
 {
+#ifdef _WIN32
+  __progname = argv[0];
+#endif
+
   // variable declaration
   struct modbus_comm_params mbcp;
   struct modbus_db_params mbdp;
@@ -65,7 +79,7 @@ int main(int argc, char **argv)
   parse_args(&mbcp, &mbdp, argc, argv);
 
   // print input variables
-  printf("IP Address: %s\n", mbcp.ip_address);
+  printf("\nIP Address: %s\n", mbcp.ip_address);
   printf("Port: %d\n", mbcp.port);
   printf("Starting Register: %d\n", mbdp.starting_register);
   printf("Number of Registers To Read: %d\n", mbdp.num_registers);
@@ -106,7 +120,7 @@ int main(int argc, char **argv)
       case BINARY:
         print_binary(tab_reg[idx]);
         break;
-      case FLOAT:
+      case FLOAT_T:
         print_float(tab_reg[idx], tab_reg[idx + 1]);
         idx++;
         break;
@@ -134,6 +148,15 @@ void usage()
   puts("  -p    destination port number (default 502)"); 
   puts("  -t    response timeout in seconds (default 3)\n"); 
 
+  puts("Formats:");
+  puts("  s - signed short integer (16-bit)");
+  puts("  S - signed long integer (32-bit)");
+  puts("  u - unsigned short integer (16-bit)");
+  puts("  U - unsigned long integer (32-bit)");
+  puts("  b - binary (16-bits)");
+  puts("  f - float (32-bit)");
+  puts("  a - ascii characters (16-bit)\n");
+
   puts("Examples:");
   printf("  %s -p 502 -t 5 192.168.1.5 40001,10,u\n"
          "    Poll 10 registers from 192.168.1.5 on port 502"
@@ -147,7 +170,11 @@ void usage()
 int is_valid_ip(char *ip_addr)
 {
   struct sockaddr_in sa;
+#ifdef _WIN32
+  return (inet_addr(ip_addr) != INADDR_NONE);
+#else
   return inet_pton(AF_INET, ip_addr, &(sa.sin_addr));
+#endif
 }
 
 // validates input parameters
@@ -271,7 +298,7 @@ int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
       mbdp->format = U_LONG;
       break;
     case 'f':
-      mbdp->format = FLOAT;
+      mbdp->format = FLOAT_T;
       break;
     case 'b':
       mbdp->format = BINARY;
@@ -285,7 +312,7 @@ int parse_args(struct modbus_comm_params *mbcp, struct modbus_db_params *mbdp,
   }
 
   // any 32-bit formats need 2 regs per value
-  if (mbdp->num_registers % 2 && (mbdp->format == FLOAT ||
+  if (mbdp->num_registers % 2 && (mbdp->format == FLOAT_T ||
                                   mbdp->format == S_LONG ||
                                   mbdp->format == U_LONG)) {
       mbdp->num_registers++;
