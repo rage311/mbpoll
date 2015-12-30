@@ -46,28 +46,28 @@ int main(int argc, char **argv)
 /* print usage */
 void usage()
 {
-  printf("Usage: %s [OPTION]... IP_ADDRESS STARTING_REGISTER,\n"
-         "NUMBER_OF_REGISTERS (or end register),FORMAT\n\n", __progname);
-  puts("Poll the specified register(s) via MODBUS/TCP.");
+  printf("Usage: %s [option]... ip_address starting_register,\n"
+         "number_of_registers (or end register),format\n", __progname);
+  puts("Poll the specified register(s) via MODBUS/TCP.\n");
   puts("  -h    show this usage");
-  puts("  -p    destination port number (default 502)"); 
-  puts("  -t    response timeout in seconds (default 3)"); 
-  puts("  -s    slave RTU address (default 1)\n"); 
+  puts("  -p    destination port number (optional -- default 502)"); 
+  puts("  -t    response timeout in seconds (optional -- default 3)"); 
+  puts("  -s    slave RTU address (optional -- default 1)\n"); 
 
   puts("Formats:");
-  puts("  s - signed short integer (16-bit)");
-  puts("  S - signed long integer (32-bit)");
-  puts("  u - unsigned short integer (16-bit)");
-  puts("  U - unsigned long integer (32-bit)");
-  puts("  b - binary (16-bits)");
-  puts("  f - float (32-bit)");
-  puts("  a - ascii characters (16-bit)\n");
+  puts("  u - unsigned short integer (16 bits)");
+  puts("  U - unsigned long integer (32 bits)");
+  puts("  s - signed short integer (16 bits)");
+  puts("  S - signed long integer (32 bits)");
+  puts("  f - float (32 bits)");
+  puts("  b - binary (16 bits)");
+  puts("  a - ascii characters (16 bits)\n");
 
   puts("Examples:");
-  printf("  %s -p 502 -t 5 192.168.1.5 40001,10,u\n"
-         "    Poll 10 registers from 192.168.1.5 on port 502"
-         " with a 5 second timeout\n"
-         "    starting at register 40001. Print values as unsigned shorts.\n",
+  printf("  %s -s 1 -t 3 -p 502 192.168.1.5 40001,10,u\n"
+         "    Poll 10 registers from 192.168.1.5, slave address 1,\n"
+         "    on port 502 with a 3 second timeout starting at\n"
+         "    register 40001. Print values as unsigned shorts.\n",
          __progname);
 }
 
@@ -335,10 +335,8 @@ void print_float(uint16_t value1, uint16_t value2)
 void print_binary(uint16_t value)
 {
   int i;
-  char binary_string[18];
+  char binary_string[18] = { '\0' };
   char *ptr = binary_string;
-
-  binary_string[17] = '\0';
 
   for (i = 32768; i > 0; i >>= 1) {
     if (i == 128) {
@@ -354,12 +352,12 @@ void print_binary(uint16_t value)
 
 void print_s_short(uint16_t value)
 {
-  printf("%d\n", value);
+  printf("%d\n", (int16_t)value);
 }
 
 void print_s_long(uint16_t value1, uint16_t value2)
 {
-  printf("%d\n", (value1 << 16) | value2);
+  printf("%d\n", (int32_t)((value1 << 16) | value2));
 }
 
 void print_u_short(uint16_t value)
@@ -369,7 +367,7 @@ void print_u_short(uint16_t value)
 
 void print_u_long(uint16_t value1, uint16_t value2)
 {
-  printf("%u\n", (value1 << 16) | value2);
+  printf("%u\n", (uint32_t)((value1 << 16) | value2));
 }
 
 void print_ascii(uint16_t value)
